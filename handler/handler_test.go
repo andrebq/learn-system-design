@@ -19,5 +19,5 @@ func TestHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	apitest.Handler(h).Put("/data.json").Body(`{"salute":"World"}`).Expect(t).Status(http.StatusOK).End()
+	apitest.Handler(h).Debug().Put("/data.json").Body(`{"salute":"World"}`).Expect(t).Status(http.StatusOK).End()
 }
