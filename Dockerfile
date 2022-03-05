@@ -13,6 +13,6 @@ FROM alpine:latest
 RUN apk add --no-cache ca-certificates
 RUN addgroup -S app && adduser -S app -G app
 
-COPY --from=builder /usr/src/app/dist/learn-system-design /usr/bin/learn-system-design
+COPY --from=builder /usr/src/app/dist/lsd /usr/bin/lsd
 USER app
-CMD [ "learn-system-design", "serve" ]
+CMD [ "lsd", "serve" ]

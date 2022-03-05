@@ -1,13 +1,8 @@
 package serve
 
 import (
-	"context"
-	"errors"
-	"net/http"
-	"time"
-
 	"github.com/andrebq/learn-system-design/handler"
-	"github.com/andrebq/learn-system-design/internal/logutil"
+	"github.com/andrebq/learn-system-design/internal/cmdutil"
 	"github.com/urfave/cli/v2"
 )
 
@@ -42,38 +37,11 @@ func Cmd() *cli.Command {
 			},
 		},
 		Action: func(c *cli.Context) error {
-			log := logutil.Acquire(c.Context)
-			rootCtx, cancel := context.WithCancel(c.Context)
-			defer cancel()
-			h, err := handler.NewHandler(rootCtx, initFile, handlerFile)
+			h, err := handler.NewHandler(c.Context, initFile, handlerFile)
 			if err != nil {
 				return err
 			}
-			server := &http.Server{Addr: bind, Handler: h}
-			shutdown := make(chan struct{})
-			go func() {
-				defer close(shutdown)
-				<-rootCtx.Done()
-				ctx, cancel := context.WithTimeout(rootCtx, time.Minute)
-				defer cancel()
-				server.Shutdown(ctx)
-			}()
-
-			serveErr := make(chan error)
-			go func() {
-				defer cancel()
-				log.Info().Str("binding", server.Addr).Msg("Starting server")
-				serveErr <- server.ListenAndServe()
-			}()
-
-			<-rootCtx.Done()
-			cancel()
-			err = <-serveErr
-			if errors.Is(err, http.ErrServerClosed) {
-				err = nil
-			}
-			<-shutdown
-			return err
+			return cmdutil.RunHTTPServer(c.Context, h, bind)
 		},
 	}
 }

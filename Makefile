@@ -15,11 +15,11 @@ tidy:
 	go fmt ./...
 
 dist:
-	go build -o ./dist/learn-system-design ./cmd/lsd
+	go build -o ./dist/lsd ./cmd/lsd
 
 serve-local: dist
 	cp -Rv ./examples/* ./dist/examples/
-	./dist/learn-system-design serve --bind 127.0.0.1:$(LOCAL_PORT) --handler-file $(PWD)/examples/echo-handler/handler.lua
+	./dist/lsd serve --bind 127.0.0.1:$(LOCAL_PORT) --handler-file $(PWD)/examples/echo-handler/handler.lua
 
 
 watch:
