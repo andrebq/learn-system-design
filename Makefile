@@ -6,6 +6,7 @@ include Env.mk
 -include EnvLocal.mk
 include Docker.mk
 include Stress.mk
+include ControlPlane.mk
 
 test:
 	go test ./...
@@ -19,7 +20,10 @@ dist:
 
 serve-local: dist
 	cp -Rv ./examples/* ./dist/examples/
-	./dist/lsd serve --bind 127.0.0.1:$(LOCAL_PORT) --handler-file $(PWD)/examples/echo-handler/handler.lua
+	./dist/lsd serve \
+		--bind 127.0.0.1:$(LOCAL_PORT) \
+		--handler-file $(PWD)/examples/echo-handler/handler.lua \
+		--public-endpoint http://127.0.0.1:$(LOCAL_PORT)
 
 
 watch:

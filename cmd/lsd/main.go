@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/andrebq/learn-system-design/cmd/lsd/control"
 	"github.com/andrebq/learn-system-design/cmd/lsd/serve"
 	"github.com/andrebq/learn-system-design/cmd/lsd/stress"
 	"github.com/andrebq/learn-system-design/internal/logutil"
@@ -24,6 +25,7 @@ func main() {
 		Commands: []*cli.Command{
 			serve.Cmd(),
 			stress.Cmd(),
+			control.Cmd(),
 		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{

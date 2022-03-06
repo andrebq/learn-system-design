@@ -15,7 +15,7 @@ func TestHandler(t *testing.T) {
 	ctx := logutil.WithLogger(context.Background(), zerolog.Nop())
 	initFile := filepath.Join("testdata", "fixture", "test-handler", "init.lua")
 	handlerFile := filepath.Join("testdata", "fixture", "test-handler", "handler.lua")
-	h, err := NewHandler(ctx, initFile, handlerFile)
+	h, err := NewHandler(ctx, initFile, handlerFile, "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -4,8 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
+	"runtime"
+	"time"
 
+	"github.com/andrebq/learn-system-design/control"
 	"github.com/andrebq/learn-system-design/internal/bindings/handler"
 	"github.com/andrebq/learn-system-design/internal/logutil"
 	lua "github.com/yuin/gopher-lua"
@@ -13,18 +17,35 @@ import (
 
 type (
 	h struct {
-		initFile    string
-		handlerFile string
+		initFile        string
+		handlerFile     string
+		service         string
+		publicEndpoint  string
+		controlEndpoint string
+		name            string
 	}
 )
 
-func NewHandler(ctx context.Context, initFile string, handlerFile string) (http.Handler, error) {
+func NewHandler(ctx context.Context, initFile string, handlerFile string, name string, publicEndpoint string, controlEndpoint string) (http.Handler, error) {
+	if len(name) == 0 {
+		u, err := url.Parse(publicEndpoint)
+		if err != nil {
+			return nil, err
+		}
+		name = u.Host
+	}
 	log := logutil.Acquire(ctx)
 	log.Info().Str("initFile", initFile).Str("handlerFile", filepath.Base(handlerFile)).Msg("Preparing new handler")
-	return &h{
-		handlerFile: handlerFile,
-		initFile:    initFile,
-	}, nil
+	h := &h{
+		handlerFile:     handlerFile,
+		initFile:        initFile,
+		service:         filepath.Base(filepath.Dir(initFile)),
+		publicEndpoint:  publicEndpoint,
+		controlEndpoint: controlEndpoint,
+		name:            name,
+	}
+	go h.registration(ctx)
+	return h, nil
 }
 
 func (h *h) ServeHTTP(w http.ResponseWriter, req *http.Request) {
@@ -70,4 +91,30 @@ func (h *h) newState(res http.ResponseWriter, req *http.Request) *lua.LState {
 
 func (h *h) String() string {
 	return fmt.Sprintf("handler init: %v / handler: %v", h.initFile, filepath.Base(h.handlerFile))
+}
+
+func (h *h) registration(ctx context.Context) {
+	if h.controlEndpoint == "" {
+		return
+	}
+	runtime.Gosched()
+	sampled := logutil.Acquire(ctx) //.Sample(zerolog.Sometimes)
+	tick := time.NewTicker(time.Second * 5)
+	for {
+		err := control.Register(ctx, h.controlEndpoint, h.name, h.service, h.publicEndpoint)
+		if err != nil {
+			sampled.Error().
+				Str("control", h.controlEndpoint).
+				Str("name", h.name).
+				Str("service", h.service).
+				Str("endpoint", h.publicEndpoint).
+				Err(err).
+				Msg("Unable to register")
+		}
+		select {
+		case <-tick.C:
+		case <-ctx.Done():
+			return
+		}
+	}
 }

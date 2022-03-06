@@ -2,7 +2,6 @@ package stress
 
 import (
 	"bytes"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/url"
@@ -11,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andrebq/learn-system-design/internal/render"
 	"github.com/julienschmidt/httprouter"
 	vegeta "github.com/tsenart/vegeta/lib"
 )
@@ -27,11 +27,6 @@ type (
 
 		hdrHistogram []byte
 		status       []byte
-	}
-
-	errorResponse struct {
-		Msg    string `json:"msg"`
-		Status int    `json:"status"`
 	}
 
 	StressTest struct {
@@ -73,7 +68,7 @@ func (h *h) getHDRHistogram(rw http.ResponseWriter, req *http.Request) {
 
 func (h *h) startTest(rw http.ResponseWriter, req *http.Request) {
 	var test StressTest
-	if err := readJSONOrFail(rw, req, &test); err != nil {
+	if err := render.ReadJSONOrFail(rw, req, &test); err != nil {
 		return
 	}
 	if test.Sustain == 0 || test.Sustain > time.Minute {
@@ -86,7 +81,7 @@ func (h *h) startTest(rw http.ResponseWriter, req *http.Request) {
 		test.Method = "GET"
 	}
 	if _, err := url.Parse(test.Target); err != nil || len(test.Target) == 0 {
-		writeError(rw, http.StatusBadRequest, "Invalid or missing target")
+		render.WriteError(rw, http.StatusBadRequest, "Invalid or missing target")
 		return
 	}
 	if test.RequestsPerSecond <= 0 {
@@ -99,14 +94,14 @@ func (h *h) startTest(rw http.ResponseWriter, req *http.Request) {
 	h.Lock()
 	defer h.Unlock()
 	if h.ongoing {
-		writeError(rw, http.StatusConflict, "There is one test already in progress, try again later")
+		render.WriteError(rw, http.StatusConflict, "There is one test already in progress, try again later")
 		return
 	}
 
 	h.test = &test
 	h.ongoing = true
 	go h.performTest(test)
-	writeSuccess(rw, http.StatusCreated, "Test in progress")
+	render.WriteSuccess(rw, http.StatusCreated, "Test in progress")
 }
 
 func (h *h) getStatus(rw http.ResponseWriter, req *http.Request) {
@@ -200,45 +195,4 @@ func (h *h) reportResults(m *vegeta.Metrics) {
 	r = vegeta.NewTextReporter(m)
 	r.Report(&buf)
 	h.status = buf.Bytes()
-}
-
-func readJSONOrFail(rw http.ResponseWriter, req *http.Request, out interface{}) error {
-	dec := json.NewDecoder(req.Body)
-	err := dec.Decode(out)
-	if err != nil {
-		writeError(rw, http.StatusBadRequest, err.Error())
-		return err
-	}
-	return err
-}
-
-func writeJSON(rw http.ResponseWriter, status int, body interface{}) error {
-	data, err := json.Marshal(body)
-	if err != nil {
-		http.Error(rw, `{"error":{"msg": "internal server error", "status": 500}}`, http.StatusInternalServerError)
-		return err
-	}
-	rw.Header().Add("Content-Length", strconv.Itoa(len(data)))
-	rw.Header().Add("Content-Type", "application/json; charset=utf-8")
-	rw.WriteHeader(status)
-	rw.Write(data)
-	return nil
-}
-
-func writeSuccess(rw http.ResponseWriter, status int, msg string) error {
-	return writeJSON(rw, status, struct {
-		OK  bool   `json:"ok"`
-		Msg string `json:"msg"`
-	}{
-		OK:  true,
-		Msg: msg,
-	})
-}
-
-func writeError(rw http.ResponseWriter, status int, msg string) error {
-	return writeJSON(rw, status, struct {
-		Error errorResponse `json:"error"`
-	}{
-		Error: errorResponse{Msg: msg, Status: status},
-	})
 }
