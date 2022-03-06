@@ -111,17 +111,31 @@ func (h *h) startTest(rw http.ResponseWriter, req *http.Request) {
 
 func (h *h) getStatus(rw http.ResponseWriter, req *http.Request) {
 	var aux bytes.Buffer
+	var status int
 	h.Lock()
-	if h.ongoing {
-		io.WriteString(&aux, "... Test is in progress, results are partial ...")
+	switch {
+	case !h.ongoing && len(h.status) == 0:
+		io.WriteString(&aux, "no tests")
 		io.WriteString(&aux, "\n")
+		status = http.StatusOK
+	case h.ongoing && len(h.status) == 0:
+		io.WriteString(&aux, "... Test is in progress, partial results are not available")
+		io.WriteString(&aux, "\n")
+		status = http.StatusTooEarly
+	case h.ongoing:
+		io.WriteString(&aux, "... Test is in progress, partial results are partial")
+		io.WriteString(&aux, "\n")
+		aux.Write(h.status)
+		status = http.StatusTooEarly
+	default:
+		aux.Write(h.status)
+		status = http.StatusOK
 	}
-	aux.Write(h.status)
 	h.Unlock()
 
 	rw.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	rw.Header().Add("Content-Length", strconv.Itoa(aux.Len()))
-	rw.WriteHeader(http.StatusOK)
+	rw.WriteHeader(status)
 	io.Copy(rw, &aux)
 }
 
