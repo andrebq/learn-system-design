@@ -12,17 +12,21 @@ import (
 	"github.com/andrebq/learn-system-design/control"
 	"github.com/andrebq/learn-system-design/internal/bindings/handler"
 	"github.com/andrebq/learn-system-design/internal/logutil"
+	"github.com/andrebq/learn-system-design/internal/mutex"
 	lua "github.com/yuin/gopher-lua"
 )
 
 type (
 	h struct {
+		mutex.Zone
 		initFile        string
 		handlerFile     string
 		service         string
 		publicEndpoint  string
 		controlEndpoint string
 		name            string
+
+		servers []*control.Server
 	}
 )
 
@@ -39,7 +43,7 @@ func NewHandler(ctx context.Context, initFile string, handlerFile string, name s
 	h := &h{
 		handlerFile:     handlerFile,
 		initFile:        initFile,
-		service:         filepath.Base(filepath.Dir(initFile)),
+		service:         filepath.Base(filepath.Dir(handlerFile)),
 		publicEndpoint:  publicEndpoint,
 		controlEndpoint: controlEndpoint,
 		name:            name,
@@ -86,6 +90,13 @@ func (h *h) newState(res http.ResponseWriter, req *http.Request) *lua.LState {
 		}
 	}
 	L.PreloadModule("handler", handler.Loader(req, res))
+
+	var availableServers []*control.Server
+	mutex.Run(h.Shared(), func() {
+		availableServers = append(availableServers, h.servers...)
+	})
+	L.PreloadModule("services", handler.ServicesLoader(req.Context(), availableServers))
+	L.PreloadModule("computations", handler.FakeComputations(req.Context()))
 	return L
 }
 
@@ -110,6 +121,35 @@ func (h *h) registration(ctx context.Context) {
 				Str("endpoint", h.publicEndpoint).
 				Err(err).
 				Msg("Unable to register")
+		}
+
+		servers, err := control.Services(ctx, h.controlEndpoint)
+		if err != nil {
+			sampled.Error().
+				Str("control", h.controlEndpoint).
+				Str("name", h.name).
+				Str("service", h.service).
+				Str("endpoint", h.publicEndpoint).
+				Err(err).
+				Msg("Unable to register")
+		} else {
+			for i, v := range servers {
+				if v.Endpoint == h.publicEndpoint {
+					servers[i] = nil
+				}
+			}
+			mutex.Run(h.Exclusive(), func() {
+				for i := range h.servers {
+					h.servers[i] = nil
+				}
+				h.servers = h.servers[:0]
+				for _, v := range servers {
+					if v == nil {
+						continue
+					}
+					h.servers = append(h.servers, v)
+				}
+			})
 		}
 		select {
 		case <-tick.C:

@@ -35,3 +35,27 @@ func Register(ctx context.Context, controlEndpoint string, name string, service 
 	}
 	return nil
 }
+
+// Services returns the list of services that are registered
+func Services(ctx context.Context, controlEndpoint string) ([]*Server, error) {
+	controlEndpoint = strings.TrimRight(controlEndpoint, "/")
+	var registry struct {
+		Servers []*Server `json:"servers"`
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%v/", controlEndpoint), nil)
+	if err != nil {
+		return nil, err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("control: unable to fetch servers from %v, status %v", controlEndpoint, res.Status)
+	}
+	err = json.NewDecoder(res.Body).Decode(&registry)
+	if err != nil {
+		return nil, fmt.Errorf("control: unable to decode response from control, cause %v", err)
+	}
+	return registry.Servers, nil
+}
