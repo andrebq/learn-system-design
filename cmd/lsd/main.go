@@ -8,6 +8,7 @@ import (
 	"github.com/andrebq/learn-system-design/cmd/lsd/control"
 	"github.com/andrebq/learn-system-design/cmd/lsd/serve"
 	"github.com/andrebq/learn-system-design/cmd/lsd/stress"
+	"github.com/andrebq/learn-system-design/internal/cmdutil"
 	"github.com/andrebq/learn-system-design/internal/logutil"
 	"github.com/rs/zerolog"
 	logpkg "github.com/rs/zerolog/log"
@@ -34,6 +35,7 @@ func main() {
 				Destination: &logLevel,
 				Value:       logLevel,
 			},
+			cmdutil.InstanceNameFlag(),
 		},
 		Before: func(ctx *cli.Context) error {
 			var ll zerolog.Level
