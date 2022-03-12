@@ -1,0 +1,5 @@
+local handler = require("handler")
+local services = require("services")
+services.call("backend")
+handler.writeStatus(200)
+handler.writeBody("from LUA!")

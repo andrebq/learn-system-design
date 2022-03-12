@@ -6,7 +6,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sync"
+
+	"github.com/andrebq/learn-system-design/internal/logutil"
+	"github.com/rs/zerolog/log"
 )
 
 type (
@@ -14,11 +18,23 @@ type (
 	Manager struct {
 		childrenGroup sync.WaitGroup
 
-		binary   string
-		baseHost string
-		basePort int
+		binary      string
+		baseHost    string
+		basePort    int
+		services    []string
+		scriptsBase string
 	}
 )
+
+func NewManager(baseBinary, baseHost string, basePort int, scriptsBase string, services []string) *Manager {
+	return &Manager{
+		binary:      baseBinary,
+		baseHost:    baseHost,
+		basePort:    basePort,
+		scriptsBase: scriptsBase,
+		services:    append([]string(nil), services...),
+	}
+}
 
 func (m *Manager) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -40,16 +56,48 @@ func (m *Manager) stopFleet(cancel context.CancelFunc) {
 }
 
 func (m *Manager) startFleet(ctx context.Context) error {
-	err := m.startController(ctx)
+	controlEndpoint, err := m.startController(ctx)
 	if err != nil {
 		return err
 	}
-	m.startStressor(ctx)
-	m.startServers(ctx)
+	err = m.startStressor(ctx, controlEndpoint)
+	if err != nil {
+		return err
+	}
+	err = m.startServers(ctx, controlEndpoint)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func (m *Manager) startController(ctx context.Context) error {
+func (m *Manager) startServers(ctx context.Context, controlEndpoint string) error {
+	for _, service := range m.services {
+		err := m.startCmd(m.childrenGroup.Done, ctx, m.binary, "serve", "--bind", fmt.Sprintf("%v:%v", m.baseHost, m.basePort),
+			"--handler-file", filepath.Join(m.scriptsBase, service, "handler.lua"),
+			"--public-endpoint", fmt.Sprintf("http://%v:%v", m.baseHost, m.basePort),
+			"--control-endpoint", controlEndpoint)
+		if err != nil {
+			return err
+		}
+		m.childrenGroup.Add(1)
+	}
+	return nil
+}
+
+func (m *Manager) startController(ctx context.Context) (string, error) {
 	err := m.startCmd(m.childrenGroup.Done, ctx, m.binary, "control-plane", "serve", "--bind", fmt.Sprintf("%v:%v", m.baseHost, m.basePort))
+	if err != nil {
+		return "", err
+	}
+	endpoint := fmt.Sprintf("http://%v:%v", m.baseHost, m.basePort)
+	m.basePort++
+	m.childrenGroup.Add(1)
+	return endpoint, nil
+}
+
+func (m *Manager) startStressor(ctx context.Context, controlEndpoint string) error {
+	err := m.startCmd(m.childrenGroup.Done, ctx, m.binary, "stress", "serve", "--bind", fmt.Sprintf("%v:%v", m.baseHost, m.basePort))
 	if err != nil {
 		return err
 	}
@@ -70,9 +118,15 @@ func (m *Manager) startCmd(done func(), ctx context.Context, binary string, args
 		return err
 	}
 	go func() {
-		defer done()
+		log := logutil.Acquire(ctx)
 		<-ctx.Done()
+		log.Info().Str("binary", binary).Strs("args", args).Int("pid", cmd.Process.Pid).Msg("Sending kill signal")
+		cmd.Process.Kill()
+	}()
+	go func() {
+		defer done()
 		cmd.Wait()
+		log.Info().Str("binary", binary).Strs("args", args).Int("pid", cmd.Process.Pid).Int("exitCode", cmd.ProcessState.ExitCode()).Msg("Process done")
 	}()
 	return nil
 }
