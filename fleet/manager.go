@@ -81,6 +81,7 @@ func (m *Manager) startServers(ctx context.Context, controlEndpoint string) erro
 			return err
 		}
 		m.childrenGroup.Add(1)
+		m.basePort++
 	}
 	return nil
 }
@@ -97,7 +98,9 @@ func (m *Manager) startController(ctx context.Context) (string, error) {
 }
 
 func (m *Manager) startStressor(ctx context.Context, controlEndpoint string) error {
-	err := m.startCmd(m.childrenGroup.Done, ctx, m.binary, "stress", "serve", "--bind", fmt.Sprintf("%v:%v", m.baseHost, m.basePort))
+	err := m.startCmd(m.childrenGroup.Done, ctx, m.binary, "stress", "serve", "--bind", fmt.Sprintf("%v:%v", m.baseHost, m.basePort),
+		"--public-endpoint", fmt.Sprintf("http://%v:%v", m.baseHost, m.basePort),
+		"--control-endpoint", controlEndpoint)
 	if err != nil {
 		return err
 	}

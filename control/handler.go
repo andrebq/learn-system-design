@@ -28,6 +28,7 @@ type (
 
 	Stressor struct {
 		BaseEndpoint string `json:"baseEndpoint"`
+		Name         string `json:"name"`
 	}
 
 	Server struct {
@@ -44,7 +45,7 @@ func Handler() http.Handler {
 		stressors: &stressorList{},
 	}
 	r.HandlerFunc("PUT", "/register/server/:server/service/:service", c.registerServer)
-	r.HandlerFunc("POST", "/register/stressor", c.registerStressor)
+	r.HandlerFunc("PUT", "/register/stressor/:name", c.registerStressor)
 	r.HandlerFunc("GET", "/registry", c.getRegistry)
 	r.HandlerFunc("GET", "/", c.getRegistry)
 	return r
@@ -72,10 +73,12 @@ func (c *control) registerServer(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (c *control) registerStressor(rw http.ResponseWriter, req *http.Request) {
+	name := httprouter.ParamsFromContext(req.Context()).ByName("name")
 	r := Stressor{}
 	if err := render.ReadJSONOrFail(rw, req, &r); err != nil {
 		return
 	}
+	r.Name = name
 	r.BaseEndpoint = strings.TrimRight(r.BaseEndpoint, "/")
 	if _, err := url.Parse(r.BaseEndpoint); err != nil || len(r.BaseEndpoint) == 0 {
 		render.WriteError(rw, http.StatusBadRequest, "Invalid endpoint")
@@ -110,6 +113,7 @@ func (sl *stressorList) addStressor(s Stressor) {
 		if v.BaseEndpoint == s.BaseEndpoint {
 			return
 		}
+		v.Name = s.Name
 	}
 	sl.items = append(sl.items, &s)
 }

@@ -9,6 +9,31 @@ import (
 	"strings"
 )
 
+func RegisterStressor(ctx context.Context, controlEndpoint string, name string, publicEndpoint string) error {
+	controlEndpoint = strings.TrimRight(controlEndpoint, "/")
+	body := Stressor{
+		Name:         name,
+		BaseEndpoint: publicEndpoint,
+	}
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%v/register/stressor/%v", controlEndpoint, name), bytes.NewBuffer(buf))
+	if err != nil {
+		return err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("control: unable to register stressor %v at %v with endpoint %v. Status %v", name, controlEndpoint, publicEndpoint, res.Status)
+	}
+	return nil
+}
+
 // Register calls the endpoint registration
 func Register(ctx context.Context, controlEndpoint string, name string, service string, publicEndpoint string) error {
 	controlEndpoint = strings.TrimRight(controlEndpoint, "/")

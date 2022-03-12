@@ -25,6 +25,8 @@ func Cmd() *cli.Command {
 
 func serveCmd() *cli.Command {
 	var bind string = "127.0.0.1:9001"
+	var publicEndpoint string
+	var controlEndpoint string = "http://127.0.0.1:9000"
 	return &cli.Command{
 		Name:  "serve",
 		Usage: "Serve the API that allows clients to run stress tests",
@@ -36,9 +38,29 @@ func serveCmd() *cli.Command {
 				Destination: &bind,
 				Value:       bind,
 			},
+			&cli.StringFlag{
+				Name: "public-endpoint",
+				Usage: `Endpoint used when sending registration information to control plane.
+
+Then endpoint of the control plane itself is defined by the 'control-endpoint' argument.
+
+This argument is mandatory!
+`,
+				EnvVars:     []string{"LSD_STRESSOR_SERVE_PUBLIC_ENDPOINT"},
+				Value:       publicEndpoint,
+				Destination: &publicEndpoint,
+				Required:    true,
+			},
+			&cli.StringFlag{
+				Name:        "control-endpoint",
+				Usage:       "Base endpoint used to register this instance in the control plane",
+				EnvVars:     []string{"LSD_STRESSOR_SERVE_CONTROL_ENDPOINT"},
+				Value:       controlEndpoint,
+				Destination: &controlEndpoint,
+			},
 		},
 		Action: func(ctx *cli.Context) error {
-			h := stress.Handler()
+			h := stress.Handler(ctx.Context, cmdutil.GetInstanceName(), controlEndpoint, publicEndpoint)
 			return cmdutil.RunHTTPServer(ctx.Context, h, bind)
 		},
 	}

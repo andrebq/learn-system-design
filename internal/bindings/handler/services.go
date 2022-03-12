@@ -57,7 +57,7 @@ func ServicesLoader(ctx context.Context, options []*control.Server) func(L *lua.
 func randomOptionByName(options []*control.Server, name string) *control.Server {
 	var validOptions []int
 	for i, v := range options {
-		if v.Name == name {
+		if v.Service == name {
 			validOptions = append(validOptions, i)
 		}
 	}

@@ -1,6 +1,7 @@
 package stress
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +28,7 @@ func TestStress(t *testing.T) {
 		Sustain:           time.Millisecond * 100,
 		RequestsPerSecond: 10,
 	}
-	handler := Handler()
+	handler := Handler(context.TODO(), "test", "", "")
 	apitest.Handler(handler).Get("/").Expect(t).Status(http.StatusOK).Body("no tests\n").End()
 	apitest.Handler(handler).Post("/start-test").Body(toJson(t, target)).Expect(t).Status(http.StatusCreated).End()
 	apitest.Handler(handler).Get("/").Expect(t).Status(http.StatusTooEarly).End()

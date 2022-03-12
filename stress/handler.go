@@ -2,6 +2,7 @@ package stress
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/url"
@@ -10,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/andrebq/learn-system-design/control"
+	"github.com/andrebq/learn-system-design/internal/logutil"
 	"github.com/andrebq/learn-system-design/internal/render"
 	"github.com/julienschmidt/httprouter"
 	vegeta "github.com/tsenart/vegeta/lib"
@@ -27,6 +30,10 @@ type (
 
 		hdrHistogram []byte
 		status       []byte
+
+		controlEndpoint string
+		name            string
+		publicEndpoint  string
 	}
 
 	StressTest struct {
@@ -40,12 +47,17 @@ type (
 	}
 )
 
-func Handler() http.Handler {
+func Handler(ctx context.Context, name string, controlEndpoint, publicEndpoint string) http.Handler {
 	router := httprouter.New()
-	handler := &h{}
+	handler := &h{
+		name:            name,
+		publicEndpoint:  publicEndpoint,
+		controlEndpoint: controlEndpoint,
+	}
 	router.HandlerFunc("GET", "/reports/hdr-histogram.txt", handler.getHDRHistogram)
 	router.HandlerFunc("POST", "/start-test", handler.startTest)
 	router.HandlerFunc("GET", "/", handler.getStatus)
+	go handler.registration(ctx)
 	_ = handler
 	return router
 }
@@ -195,4 +207,30 @@ func (h *h) reportResults(m *vegeta.Metrics) {
 	r = vegeta.NewTextReporter(m)
 	r.Report(&buf)
 	h.status = buf.Bytes()
+}
+
+func (h *h) registration(ctx context.Context) {
+	if h.controlEndpoint == "" {
+		return
+	}
+	runtime.Gosched()
+	sampled := logutil.Acquire(ctx) //.Sample(zerolog.Sometimes)
+	tick := time.NewTicker(time.Second * 5)
+	for {
+		err := control.RegisterStressor(ctx, h.controlEndpoint, h.name, h.publicEndpoint)
+		if err != nil {
+			sampled.Error().
+				Str("control", h.controlEndpoint).
+				Str("name", h.name).
+				Str("endpoint", h.publicEndpoint).
+				Err(err).
+				Msg("Unable to register")
+		}
+
+		select {
+		case <-tick.C:
+		case <-ctx.Done():
+			return
+		}
+	}
 }
