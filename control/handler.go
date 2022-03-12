@@ -1,12 +1,16 @@
 package control
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/andrebq/learn-system-design/internal/logutil"
 	"github.com/andrebq/learn-system-design/internal/mutex"
 	"github.com/andrebq/learn-system-design/internal/render"
 	"github.com/julienschmidt/httprouter"
@@ -66,8 +70,21 @@ func Handler() http.Handler {
 	r.HandlerFunc("PUT", "/register/stressor/:name", c.registerStressor)
 	r.HandlerFunc("PUT", "/register/instance/:name", c.registerInstance)
 	r.HandlerFunc("GET", "/registry", c.getRegistry)
-	r.HandlerFunc("GET", "/", c.getRegistry)
+	r.HandlerFunc("GET", "/static/styles/:style", c.renderCss)
+	r.HandlerFunc("GET", "/", c.getDashboard)
 	return r
+}
+
+func (c *control) renderCss(rw http.ResponseWriter, req *http.Request) {
+	style := css[httprouter.ParamsFromContext(req.Context()).ByName("style")]
+	if len(style) == 0 {
+		http.Error(rw, "Not found", http.StatusNotFound)
+		return
+	}
+	rw.Header().Add("Content-Type", "text/css; charset=utf-8")
+	rw.Header().Add("Content-Length", strconv.Itoa(len(style)))
+	rw.WriteHeader(http.StatusOK)
+	io.WriteString(rw, style)
 }
 
 func (c *control) registerServer(rw http.ResponseWriter, req *http.Request) {
@@ -119,6 +136,39 @@ func (c *control) registerInstance(rw http.ResponseWriter, req *http.Request) {
 		c.instances.addInstance(i)
 	})
 	render.WriteSuccess(rw, http.StatusOK, "Instance added to the list")
+}
+
+func (c *control) getDashboard(rw http.ResponseWriter, req *http.Request) {
+	var buf bytes.Buffer
+	err := mutex.RunErr(c.globalLock.Shared(), func() error {
+		defaultStressorTarget := "http://invalid.localhost"
+		for _, s := range c.services.items {
+			if s.Service == "frontend" {
+				defaultStressorTarget = s.Endpoint
+			}
+		}
+		return rootTmpl.ExecuteTemplate(&buf, "index.html", struct {
+			Servers               []*Server
+			Stressors             []*Stressor
+			Instances             map[string]*Instance
+			DefaultStressorTarget string
+		}{
+			Servers:               c.services.items,
+			Stressors:             c.stressors.items,
+			Instances:             c.instances.items,
+			DefaultStressorTarget: defaultStressorTarget,
+		})
+	})
+	if err != nil {
+		log := logutil.Acquire(req.Context())
+		log.Error().Err(err).Msg("Unable to render dashboard")
+		http.Error(rw, "Unable to render dashboard, please try again later or reach out to the admin", http.StatusInternalServerError)
+		return
+	}
+	rw.Header().Add("Content-Type", "text/html; chartset=utf-8")
+	rw.Header().Add("Content-Length", strconv.Itoa(buf.Len()))
+	rw.WriteHeader(http.StatusOK)
+	rw.Write(buf.Bytes())
 }
 
 func (c *control) getRegistry(rw http.ResponseWriter, req *http.Request) {

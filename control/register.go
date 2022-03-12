@@ -91,7 +91,7 @@ func Services(ctx context.Context, controlEndpoint string) ([]*Server, error) {
 	var registry struct {
 		Servers []*Server `json:"servers"`
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%v/", controlEndpoint), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("%v/registry", controlEndpoint), nil)
 	if err != nil {
 		return nil, err
 	}
