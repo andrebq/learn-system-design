@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"time"
 
 	"github.com/andrebq/learn-system-design/control"
@@ -26,18 +26,13 @@ type (
 		controlEndpoint string
 		name            string
 
+		instanceData control.Instance
+
 		servers []*control.Server
 	}
 )
 
 func NewHandler(ctx context.Context, initFile string, handlerFile string, name string, publicEndpoint string, controlEndpoint string) (http.Handler, error) {
-	if len(name) == 0 {
-		u, err := url.Parse(publicEndpoint)
-		if err != nil {
-			return nil, err
-		}
-		name = u.Host
-	}
 	log := logutil.Acquire(ctx)
 	log.Info().Str("initFile", initFile).Str("handlerFile", filepath.Base(handlerFile)).Msg("Preparing new handler")
 	h := &h{
@@ -47,6 +42,10 @@ func NewHandler(ctx context.Context, initFile string, handlerFile string, name s
 		publicEndpoint:  publicEndpoint,
 		controlEndpoint: controlEndpoint,
 		name:            name,
+		instanceData: control.Instance{
+			Name:     name,
+			Services: map[string]string{filepath.Base(filepath.Dir(handlerFile)): publicEndpoint},
+		},
 	}
 	go h.registration(ctx)
 	return h, nil
@@ -58,6 +57,8 @@ func (h *h) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	req = req.WithContext(ctx)
 	_ = req
 	state := h.newState(w, req)
+	state.SetContext(req.Context())
+	atomic.AddInt64(&h.instanceData.Metrics.Requests, 1)
 	err := state.DoFile(h.handlerFile)
 	if err != nil {
 		log.Error().Err(err).Str("method", req.Method).Stringer("url", req.URL).Msg("Error while processing request")
@@ -112,7 +113,7 @@ func (h *h) registration(ctx context.Context) {
 	sampled := logutil.Acquire(ctx) //.Sample(zerolog.Sometimes)
 	tick := time.NewTicker(time.Second * 5)
 	for {
-		err := control.Register(ctx, h.controlEndpoint, h.name, h.service, h.publicEndpoint)
+		err := control.Register(ctx, h.controlEndpoint, h.service, h.publicEndpoint)
 		if err != nil {
 			sampled.Error().
 				Str("control", h.controlEndpoint).
@@ -121,6 +122,16 @@ func (h *h) registration(ctx context.Context) {
 				Str("endpoint", h.publicEndpoint).
 				Err(err).
 				Msg("Unable to register")
+		}
+		err = control.RegisterInstance(ctx, h.controlEndpoint, h.instanceData)
+		if err != nil {
+			sampled.Error().
+				Str("control", h.controlEndpoint).
+				Str("name", h.name).
+				Str("service", h.service).
+				Str("endpoint", h.publicEndpoint).
+				Err(err).
+				Msg("Unable to register instance")
 		}
 
 		servers, err := control.Services(ctx, h.controlEndpoint)

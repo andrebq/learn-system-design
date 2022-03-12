@@ -12,7 +12,6 @@ func Cmd() *cli.Command {
 	var handlerFile string = "./scripts/handler.lua"
 	var publicEndpoint string = ""
 	var controlEndpoint string = "http://127.0.0.1:9002/"
-	var name string
 	return &cli.Command{
 		Name:  "serve",
 		Usage: "Serve the configured handler at the designated port",
@@ -39,14 +38,6 @@ func Cmd() *cli.Command {
 				Destination: &handlerFile,
 			},
 			&cli.StringFlag{
-				Name:        "registration-name",
-				Usage:       "Name used to identify this instance in the control plane, when empty defaults to host:port from public-endpoint.",
-				Aliases:     []string{"name"},
-				EnvVars:     []string{"LSD_SERVE_REGISTRATION_NAME"},
-				Destination: &name,
-				Value:       name,
-			},
-			&cli.StringFlag{
 				Name: "public-endpoint",
 				Usage: `Endpoint used when sending registration information to control plane.
 
@@ -68,7 +59,7 @@ This argument is mandatory!
 			},
 		},
 		Action: func(c *cli.Context) error {
-			h, err := handler.NewHandler(c.Context, initFile, handlerFile, name, publicEndpoint, controlEndpoint)
+			h, err := handler.NewHandler(c.Context, initFile, handlerFile, cmdutil.GetInstanceName(), publicEndpoint, controlEndpoint)
 			if err != nil {
 				return err
 			}

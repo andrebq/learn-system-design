@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func RegisterStressor(ctx context.Context, controlEndpoint string, name string, publicEndpoint string) error {
@@ -34,19 +35,16 @@ func RegisterStressor(ctx context.Context, controlEndpoint string, name string, 
 	return nil
 }
 
-// Register calls the endpoint registration
-func Register(ctx context.Context, controlEndpoint string, name string, service string, publicEndpoint string) error {
+func RegisterInstance(ctx context.Context, controlEndpoint string, data Instance) error {
+	name := data.Name
+	data.LastPing = time.Time{}
+	data.TimeSinceLastPingMs = 0
 	controlEndpoint = strings.TrimRight(controlEndpoint, "/")
-	body := Server{
-		Name:     name,
-		Service:  service,
-		Endpoint: publicEndpoint,
-	}
-	buf, err := json.Marshal(body)
+	buf, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%v/register/server/%v/service/%v", controlEndpoint, name, service), bytes.NewBuffer(buf))
+	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%v/register/instance/%v", controlEndpoint, name), bytes.NewBuffer(buf))
 	if err != nil {
 		return err
 	}
@@ -56,7 +54,33 @@ func Register(ctx context.Context, controlEndpoint string, name string, service 
 	}
 	res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("control: unable to register server %v.%v at %v with endpoint %v. Status %v", name, service, controlEndpoint, publicEndpoint, res.Status)
+		return fmt.Errorf("control: unable to register instance %v at %v. Status %v", name, controlEndpoint, res.Status)
+	}
+	return nil
+}
+
+// Register calls the endpoint registration
+func Register(ctx context.Context, controlEndpoint string, service string, publicEndpoint string) error {
+	controlEndpoint = strings.TrimRight(controlEndpoint, "/")
+	body := Server{
+		Service:  service,
+		Endpoint: publicEndpoint,
+	}
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, "PUT", fmt.Sprintf("%v/register/service/%v", controlEndpoint, service), bytes.NewBuffer(buf))
+	if err != nil {
+		return err
+	}
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("control: unable to register service %v at %v with endpoint %v. Status %v", service, controlEndpoint, publicEndpoint, res.Status)
 	}
 	return nil
 }

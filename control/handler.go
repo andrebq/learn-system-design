@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/andrebq/learn-system-design/internal/mutex"
 	"github.com/andrebq/learn-system-design/internal/render"
@@ -16,6 +17,11 @@ type (
 		globalLock mutex.Zone
 		stressors  *stressorList
 		services   *serviceList
+		instances  *instanceList
+	}
+
+	instanceList struct {
+		items map[string]*Instance
 	}
 
 	stressorList struct {
@@ -26,6 +32,16 @@ type (
 		items []*Server
 	}
 
+	Instance struct {
+		Name                string            `json:"name"`
+		LastPing            time.Time         `json:"lastPing,omitempty"`
+		TimeSinceLastPingMs int64             `json:"timeSinceLastPingMs,omitempty"`
+		Services            map[string]string `json:"services"`
+		Metrics             struct {
+			Requests int64 `json:"requests"`
+		} `json:"metrics"`
+	}
+
 	Stressor struct {
 		BaseEndpoint string `json:"baseEndpoint"`
 		Name         string `json:"name"`
@@ -33,7 +49,6 @@ type (
 
 	Server struct {
 		Service  string `json:"service"`
-		Name     string `json:"name"`
 		Endpoint string `json:"endpoint"`
 	}
 )
@@ -43,9 +58,13 @@ func Handler() http.Handler {
 	c := &control{
 		services:  &serviceList{},
 		stressors: &stressorList{},
+		instances: &instanceList{
+			items: make(map[string]*Instance),
+		},
 	}
-	r.HandlerFunc("PUT", "/register/server/:server/service/:service", c.registerServer)
+	r.HandlerFunc("PUT", "/register/service/:service", c.registerServer)
 	r.HandlerFunc("PUT", "/register/stressor/:name", c.registerStressor)
+	r.HandlerFunc("PUT", "/register/instance/:name", c.registerInstance)
 	r.HandlerFunc("GET", "/registry", c.getRegistry)
 	r.HandlerFunc("GET", "/", c.getRegistry)
 	return r
@@ -53,13 +72,11 @@ func Handler() http.Handler {
 
 func (c *control) registerServer(rw http.ResponseWriter, req *http.Request) {
 	params := httprouter.ParamsFromContext(req.Context())
-	name := params.ByName("server")
 	service := params.ByName("service")
 	r := Server{}
 	if err := render.ReadJSONOrFail(rw, req, &r); err != nil {
 		return
 	}
-	r.Name = name
 	r.Service = service
 	r.Endpoint = strings.TrimRight(r.Endpoint, "/")
 	if _, err := url.Parse(r.Endpoint); err != nil || len(r.Endpoint) == 0 {
@@ -89,16 +106,36 @@ func (c *control) registerStressor(rw http.ResponseWriter, req *http.Request) {
 	render.WriteSuccess(rw, http.StatusOK, "Stressor added to the list")
 }
 
+func (c *control) registerInstance(rw http.ResponseWriter, req *http.Request) {
+	name := httprouter.ParamsFromContext(req.Context()).ByName("name")
+	i := Instance{}
+	if err := render.ReadJSONOrFail(rw, req, &i); err != nil {
+		return
+	}
+	i.Name = name
+	i.LastPing = time.Now()
+	i.TimeSinceLastPingMs = 0
+	mutex.Run(c.globalLock.Exclusive(), func() {
+		c.instances.addInstance(i)
+	})
+	render.WriteSuccess(rw, http.StatusOK, "Instance added to the list")
+}
+
 func (c *control) getRegistry(rw http.ResponseWriter, req *http.Request) {
 	var buf []byte
 	var err error
+	mutex.Run(c.globalLock.Exclusive(), func() {
+		c.instances.trim()
+	})
 	mutex.Run(c.globalLock.Shared(), func() {
 		buf, err = json.Marshal(struct {
-			Servers   []*Server   `json:"servers"`
-			Stressors []*Stressor `json:"stressor"`
+			Servers   []*Server            `json:"servers"`
+			Stressors []*Stressor          `json:"stressor"`
+			Instances map[string]*Instance `json:"instances"`
 		}{
 			Servers:   c.services.items,
 			Stressors: c.stressors.items,
+			Instances: c.instances.items,
 		})
 	})
 	if err != nil {
@@ -120,10 +157,28 @@ func (sl *stressorList) addStressor(s Stressor) {
 
 func (sl *serviceList) addServer(s Server) {
 	for _, v := range sl.items {
-		if v.Name == s.Name && v.Service == s.Service {
-			v.Endpoint = s.Endpoint
+		if v.Service == s.Service && v.Endpoint == s.Endpoint {
 			return
 		}
 	}
 	sl.items = append(sl.items, &s)
+}
+
+func (il *instanceList) addInstance(i Instance) {
+	il.items[i.Name] = &i
+	il.trim()
+}
+
+func (il *instanceList) trim() {
+	now := time.Now()
+	for idx, v := range il.items {
+		v.TimeSinceLastPingMs = now.Sub(v.LastPing).Milliseconds()
+		if v.TimeSinceLastPingMs < 0 {
+			v.TimeSinceLastPingMs = 0
+			continue
+		} else if v.TimeSinceLastPingMs > time.Minute.Milliseconds() {
+			delete(il.items, idx)
+		}
+	}
+
 }
