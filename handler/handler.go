@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"path/filepath"
 	"runtime"
@@ -21,6 +22,7 @@ type (
 		mutex.Zone
 		initFile        string
 		handlerFile     string
+		handlerCode     string
 		service         string
 		publicEndpoint  string
 		controlEndpoint string
@@ -33,10 +35,15 @@ type (
 )
 
 func NewHandler(ctx context.Context, initFile string, handlerFile string, name string, publicEndpoint string, controlEndpoint string) (http.Handler, error) {
+	handlerCode, err := ioutil.ReadFile(handlerFile)
+	if err != nil {
+		return nil, fmt.Errorf("handler: unable to open %v, cause %w", handlerFile, err)
+	}
 	log := logutil.Acquire(ctx)
 	log.Info().Str("initFile", initFile).Str("handlerFile", filepath.Base(handlerFile)).Msg("Preparing new handler")
 	h := &h{
 		handlerFile:     handlerFile,
+		handlerCode:     string(handlerCode),
 		initFile:        initFile,
 		service:         filepath.Base(filepath.Dir(handlerFile)),
 		publicEndpoint:  publicEndpoint,
@@ -59,7 +66,7 @@ func (h *h) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	state := h.newState(w, req)
 	state.SetContext(req.Context())
 	atomic.AddInt64(&h.instanceData.Metrics.Requests, 1)
-	err := state.DoFile(h.handlerFile)
+	err := state.DoString(h.handlerCode)
 	if err != nil {
 		log.Error().Err(err).Str("method", req.Method).Stringer("url", req.URL).Msg("Error while processing request")
 		http.Error(w, err.Error(), http.StatusInternalServerError)

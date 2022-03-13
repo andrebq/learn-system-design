@@ -33,6 +33,7 @@ func localFleetCmd() *cli.Command {
 		basePort   = 9000
 		services   = cli.StringSlice{}
 		baseBinary = os.Args[0]
+		stressors  = 4
 	)
 	return &cli.Command{
 		Name:  "serve-local",
@@ -52,9 +53,15 @@ func localFleetCmd() *cli.Command {
 				Usage:       "Applicaton (service) to spin up (add multiple times to start different types of services)",
 				Destination: &services,
 			},
+			&cli.IntFlag{
+				Name:        "stressors",
+				Usage:       "How many stressors to start",
+				Destination: &stressors,
+				Value:       stressors,
+			},
 		},
 		Action: func(ctx *cli.Context) error {
-			m := fleet.NewManager(baseBinary, bindIface, basePort, scriptBase, services.Value())
+			m := fleet.NewManager(baseBinary, bindIface, basePort, scriptBase, stressors, services.Value())
 			return m.Run(ctx.Context)
 		},
 	}

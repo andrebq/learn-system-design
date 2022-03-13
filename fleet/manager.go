@@ -23,15 +23,17 @@ type (
 		basePort    int
 		services    []string
 		scriptsBase string
+		stressors   int
 	}
 )
 
-func NewManager(baseBinary, baseHost string, basePort int, scriptsBase string, services []string) *Manager {
+func NewManager(baseBinary, baseHost string, basePort int, scriptsBase string, stressors int, services []string) *Manager {
 	return &Manager{
 		binary:      baseBinary,
 		baseHost:    baseHost,
 		basePort:    basePort,
 		scriptsBase: scriptsBase,
+		stressors:   stressors,
 		services:    append([]string(nil), services...),
 	}
 }
@@ -60,9 +62,11 @@ func (m *Manager) startFleet(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = m.startStressor(ctx, controlEndpoint)
-	if err != nil {
-		return err
+	for i := 0; i < m.stressors; i++ {
+		err = m.startStressor(ctx, controlEndpoint)
+		if err != nil {
+			return err
+		}
 	}
 	err = m.startServers(ctx, controlEndpoint)
 	if err != nil {

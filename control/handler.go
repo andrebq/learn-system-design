@@ -238,7 +238,6 @@ func (sl *stressorList) addStressor(s Stressor) {
 			v.TestInProgress = s.TestInProgress
 			return
 		}
-		v.Name = s.Name
 	}
 	sl.items = append(sl.items, &s)
 }
