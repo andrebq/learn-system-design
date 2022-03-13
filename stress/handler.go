@@ -151,6 +151,7 @@ func (h *h) performTest(test StressTest) {
 		h.Lock()
 		h.ongoing = false
 		h.Unlock()
+		h.notifyStatusChange(context.TODO())
 	}()
 	h.testLock.Lock()
 	defer h.testLock.Unlock()
@@ -187,6 +188,7 @@ func (h *h) performTest(test StressTest) {
 		i++
 		metrics.Add(r)
 		if i%100 == 0 {
+			h.notifyStatusChange(context.TODO())
 			h.reportResults(&metrics)
 		}
 	}
@@ -217,7 +219,7 @@ func (h *h) registration(ctx context.Context) {
 	sampled := logutil.Acquire(ctx) //.Sample(zerolog.Sometimes)
 	tick := time.NewTicker(time.Second * 5)
 	for {
-		err := control.RegisterStressor(ctx, h.controlEndpoint, h.name, h.publicEndpoint)
+		err := h.notifyStatusChange(ctx)
 		if err != nil {
 			sampled.Error().
 				Str("control", h.controlEndpoint).
@@ -233,4 +235,8 @@ func (h *h) registration(ctx context.Context) {
 			return
 		}
 	}
+}
+
+func (h *h) notifyStatusChange(ctx context.Context) error {
+	return control.RegisterStressor(ctx, h.controlEndpoint, h.name, h.publicEndpoint, h.ongoing)
 }

@@ -10,11 +10,12 @@ import (
 	"time"
 )
 
-func RegisterStressor(ctx context.Context, controlEndpoint string, name string, publicEndpoint string) error {
+func RegisterStressor(ctx context.Context, controlEndpoint string, name string, publicEndpoint string, testInProgress bool) error {
 	controlEndpoint = strings.TrimRight(controlEndpoint, "/")
 	body := Stressor{
-		Name:         name,
-		BaseEndpoint: publicEndpoint,
+		Name:           name,
+		BaseEndpoint:   publicEndpoint,
+		TestInProgress: testInProgress,
 	}
 	buf, err := json.Marshal(body)
 	if err != nil {

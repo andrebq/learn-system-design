@@ -65,6 +65,9 @@ var (
 					<tr>
 						<td>
 							<a rel="no-follow" href="{{ $data.BaseEndpoint }}/">{{ $data.Name }}</a> ({{ $data.BaseEndpoint }})
+							{{ if $data.TestInProgress }}
+							(test in progress)
+							{{ end }}
 						</td>
 						<td>
 							<form method="POST" action="/actions/trigger-stressor/{{ $data.Name }}">
