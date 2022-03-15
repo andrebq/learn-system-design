@@ -23,7 +23,7 @@ receivers:
 
 exporters:
   jaeger:
-    endpoint: jaeger:14250
+    endpoint: http://jaeger:14250
   logging:
 
 processors:
