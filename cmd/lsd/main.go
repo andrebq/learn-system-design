@@ -9,6 +9,7 @@ import (
 	"github.com/andrebq/learn-system-design/cmd/lsd/fleet"
 	"github.com/andrebq/learn-system-design/cmd/lsd/serve"
 	"github.com/andrebq/learn-system-design/cmd/lsd/stress"
+	"github.com/andrebq/learn-system-design/cmd/lsd/support"
 	"github.com/andrebq/learn-system-design/internal/cmdutil"
 	"github.com/andrebq/learn-system-design/internal/logutil"
 	"github.com/rs/zerolog"
@@ -29,6 +30,7 @@ func main() {
 			stress.Cmd(),
 			control.Cmd(),
 			fleet.Cmd(),
+			support.Cmd(),
 		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
