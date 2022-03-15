@@ -8,6 +8,7 @@ include Docker.mk
 include Stress.mk
 include ControlPlane.mk
 include Fleet.mk
+include Support.mk
 
 test:
 	go test ./...
