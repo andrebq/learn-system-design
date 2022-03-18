@@ -13,6 +13,7 @@ import (
 	"github.com/andrebq/learn-system-design/control"
 	"github.com/andrebq/learn-system-design/internal/bindings/handler"
 	"github.com/andrebq/learn-system-design/internal/logutil"
+	"github.com/andrebq/learn-system-design/internal/monitoring"
 	"github.com/andrebq/learn-system-design/internal/mutex"
 	lua "github.com/yuin/gopher-lua"
 )
@@ -34,7 +35,7 @@ type (
 	}
 )
 
-func NewHandler(ctx context.Context, initFile string, handlerFile string, name string, publicEndpoint string, controlEndpoint string) (http.Handler, error) {
+func NewHandler(ctx context.Context, initFile string, handlerFile string, name string, serviceName string, publicEndpoint string, controlEndpoint string) (http.Handler, error) {
 	handlerCode, err := ioutil.ReadFile(handlerFile)
 	if err != nil {
 		return nil, fmt.Errorf("handler: unable to open %v, cause %w", handlerFile, err)
@@ -45,13 +46,13 @@ func NewHandler(ctx context.Context, initFile string, handlerFile string, name s
 		handlerFile:     handlerFile,
 		handlerCode:     string(handlerCode),
 		initFile:        initFile,
-		service:         filepath.Base(filepath.Dir(handlerFile)),
+		service:         serviceName,
 		publicEndpoint:  publicEndpoint,
 		controlEndpoint: controlEndpoint,
 		name:            name,
 		instanceData: control.Instance{
 			Name:     name,
-			Services: map[string]string{filepath.Base(filepath.Dir(handlerFile)): publicEndpoint},
+			Services: map[string]string{serviceName: publicEndpoint},
 		},
 	}
 	go h.registration(ctx)
@@ -63,18 +64,21 @@ func (h *h) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ctx := logutil.WithLogger(req.Context(), log)
 	req = req.WithContext(ctx)
 	_ = req
-	state := h.newState(w, req)
-	state.SetContext(req.Context())
-	atomic.AddInt64(&h.instanceData.Metrics.Requests, 1)
-	err := state.DoString(h.handlerCode)
-	if err != nil {
-		log.Error().Err(err).Str("method", req.Method).Stringer("url", req.URL).Msg("Error while processing request")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+	tracer := monitoring.Tracer("lsd-handler")
+	monitoring.Measure(ctx, tracer, "handler", func(ctx context.Context) {
+		state := h.newState(ctx, w, req)
+		state.SetContext(req.Context())
+		atomic.AddInt64(&h.instanceData.Metrics.Requests, 1)
+		err := state.DoString(h.handlerCode)
+		if err != nil {
+			log.Error().Err(err).Str("method", req.Method).Stringer("url", req.URL).Msg("Error while processing request")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	})
 }
 
-func (h *h) newState(res http.ResponseWriter, req *http.Request) *lua.LState {
+func (h *h) newState(ctx context.Context, res http.ResponseWriter, req *http.Request) *lua.LState {
 	L := lua.NewState(lua.Options{
 		SkipOpenLibs:        true,
 		RegistryMaxSize:     1_000_000,
@@ -103,8 +107,8 @@ func (h *h) newState(res http.ResponseWriter, req *http.Request) *lua.LState {
 	mutex.Run(h.Shared(), func() {
 		availableServers = append(availableServers, h.servers...)
 	})
-	L.PreloadModule("services", handler.ServicesLoader(req.Context(), availableServers))
-	L.PreloadModule("computations", handler.FakeComputations(req.Context()))
+	L.PreloadModule("services", handler.ServicesLoader(ctx, availableServers))
+	L.PreloadModule("computations", handler.FakeComputations(ctx))
 	return L
 }
 

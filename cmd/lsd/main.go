@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/andrebq/learn-system-design/cmd/lsd/control"
 	"github.com/andrebq/learn-system-design/cmd/lsd/fleet"
@@ -12,15 +13,15 @@ import (
 	"github.com/andrebq/learn-system-design/cmd/lsd/support"
 	"github.com/andrebq/learn-system-design/internal/cmdutil"
 	"github.com/andrebq/learn-system-design/internal/logutil"
+	"github.com/andrebq/learn-system-design/internal/monitoring"
 	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	logpkg "github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"
 )
 
-func main() {
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
-	log := logutil.Acquire(logutil.WithLogger(ctx, logpkg.Logger))
+func newApp(parentCtx context.Context) *cli.App {
+	var sigCancel context.CancelFunc
 	var logLevel string = zerolog.InfoLevel.String()
 	app := &cli.App{
 		Name:  "lsd - learn system design",
@@ -40,8 +41,26 @@ func main() {
 				Value:       logLevel,
 			},
 			cmdutil.InstanceNameFlag(),
+			cmdutil.ServiceNameFlag(),
+			cmdutil.ServiceEnvFlag(),
+			cmdutil.ServiceVersionFlag(),
+			cmdutil.ExporterTypeFlag(),
+		},
+		After: func(ctx *cli.Context) error {
+			if sigCancel != nil {
+				sigCancel()
+			}
+			shutdownCtx, cancel := context.WithTimeout(parentCtx, time.Minute)
+			defer cancel()
+			monitoring.ShutdownProvider(shutdownCtx)
+			return nil
 		},
 		Before: func(ctx *cli.Context) error {
+			exp, err := cmdutil.Exporter(parentCtx)
+			if err != nil {
+				return err
+			}
+			monitoring.InitTraceProvider(exp, cmdutil.Resource())
 			var ll zerolog.Level
 			switch logLevel {
 			case zerolog.LevelDebugValue, zerolog.LevelTraceValue:
@@ -51,14 +70,25 @@ func main() {
 			case zerolog.LevelWarnValue:
 				ll = zerolog.WarnLevel
 			}
-			log = log.Level(ll)
-			ctx.Context = logutil.WithLogger(ctx.Context, log)
+			log := log.Level(ll)
+			appCtx := logutil.WithLogger(ctx.Context, log)
+			var sigCtx context.Context
+			sigCtx, sigCancel = signal.NotifyContext(appCtx, os.Interrupt)
+
+			ctx.Context = sigCtx
 			logpkg.Logger = log
 			return nil
 		},
 	}
+	return app
+}
 
-	err := app.RunContext(ctx, os.Args)
+func main() {
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	defer rootCancel()
+	log := logutil.Acquire(logutil.WithLogger(rootCtx, logpkg.Logger))
+	app := newApp(rootCtx)
+	err := app.RunContext(rootCtx, os.Args)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Application failed")
 	}

@@ -7,3 +7,10 @@ jaeger-up: dist
 
 jaeger-down:
 	docker-compose -f ./localfiles/jaeger.compose.yaml down
+
+
+uptrace-up:
+	cd localfiles && ../dist/lsd support uptrace docker-compose
+	docker-compose -f ./localfiles/uptrace.compose.yaml up
+uptrace-down:
+	docker-compose -f ./localfiles/uptrace.compose.yaml down

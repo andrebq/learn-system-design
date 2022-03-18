@@ -10,6 +10,7 @@ func Cmd() *cli.Command {
 		Usage: "Commands to control support tooling (tracing, logging, etc...)",
 		Subcommands: []*cli.Command{
 			jaegerCmd(),
+			uptraceCmd(),
 		},
 	}
 }
