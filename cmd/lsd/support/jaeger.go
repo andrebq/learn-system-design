@@ -22,8 +22,10 @@ receivers:
         endpoint: 0.0.0.0:{{ .OtelHTTPPort }}
 
 exporters:
-  jaeger:
-    endpoint: http://jaeger:14250
+  otlp/jager:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
   logging:
 
 processors:
@@ -38,7 +40,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [jaeger, logging]
+      exporters: [otlp/jager, logging]
       processors: [batch]
 {{ end }}
 
@@ -47,7 +49,7 @@ version: '{{ .ComposeVersion }}'
 services:
   {{ if not .SkipOtelCollector }}
   otel-collector:
-    image: otel/opentelemetry-collector:latest
+    image: otel/opentelemetry-collector:0.47.0
     command: ["--config=/etc/otel-collector-config.yml"]
     volumes:
       - {{ .OtelConfigFile }}:/etc/otel-collector-config.yml
@@ -62,7 +64,7 @@ services:
       - jaeger
   {{ end }}
   jaeger:
-    image: jaegertracing/all-in-one:latest
+    image: jaegertracing/all-in-one:1.32
     ports:
       - "{{ .UDPPort }}:{{ .UDPPort }}/udp"
       - "{{ .HTTPPort }}:{{ .HTTPPort }}"
@@ -105,7 +107,7 @@ func jaegerCmd() *cli.Command {
 }
 
 func jaegerDockerComposeCmd() *cli.Command {
-	var jagerConfig = struct {
+	var jaegerConfig = struct {
 		UDPPort           int
 		HTTPPort          int
 		ComposeVersion    string
@@ -130,30 +132,30 @@ func jaegerDockerComposeCmd() *cli.Command {
 		OtelGRPCPort:      4317,
 		OtelConfigFile:    "./otel-collector-config.yaml",
 	}
-	var composeOutput = "jaeger.compose.yaml"
+	var composeOutput = "compose.compose.yaml"
 	var skipOtelConfigFile = false
 	return &cli.Command{
 		Name:  "docker-compose",
 		Usage: "Generates simple docker-compose file that contains a jaeger installation",
 		Flags: []cli.Flag{
-			cmdutil.StringFlag(&jagerConfig.ComposeVersion, "compose-version", "Version of docker compose to use"),
-			cmdutil.IntFlag(&jagerConfig.UDPPort, "udp-port", "Port to bind the UDP Jager Agent"),
-			cmdutil.IntFlag(&jagerConfig.HTTPPort, "http-port", "Port to bind the Jaeger UI"),
-			cmdutil.BoolFlag(&jagerConfig.IncludeSampleApp, "include-sample-app", "Include the hot-rod sample app from Jaeger"),
-			cmdutil.IntFlag(&jagerConfig.SampleAppPort, "sample-app-port", "PORT used by the sample app"),
-			cmdutil.BoolFlag(&jagerConfig.CustomNetwork, "use-custom-network", "Indicates if the compose file should include settings for a specific network"),
-			cmdutil.StringFlag(&jagerConfig.CustomNetworkName, "custom-network", "Name of the custom network to use"),
-			cmdutil.BoolFlag(&jagerConfig.SkipOtelCollector, "skip-otel-collector", "Generate the docker-compose file without the Otel Collector"),
-			cmdutil.IntFlag(&jagerConfig.OtelGRPCPort, "otel-grpc-port", "Port to bind the Otel-Collector GRPC Server"),
-			cmdutil.IntFlag(&jagerConfig.OtelHTTPPort, "otel-http-port", "Port to bind the Otel-Collector HTTP Server"),
-			cmdutil.StringFlag(&jagerConfig.OtelConfigFile, "otel-config-file", "File where otel config should be saved"),
+			cmdutil.StringFlag(&jaegerConfig.ComposeVersion, "compose-version", "Version of docker compose to use"),
+			cmdutil.IntFlag(&jaegerConfig.UDPPort, "udp-port", "Port to bind the UDP jaeger Agent"),
+			cmdutil.IntFlag(&jaegerConfig.HTTPPort, "http-port", "Port to bind the Jaeger UI"),
+			cmdutil.BoolFlag(&jaegerConfig.IncludeSampleApp, "include-sample-app", "Include the hot-rod sample app from Jaeger"),
+			cmdutil.IntFlag(&jaegerConfig.SampleAppPort, "sample-app-port", "PORT used by the sample app"),
+			cmdutil.BoolFlag(&jaegerConfig.CustomNetwork, "use-custom-network", "Indicates if the compose file should include settings for a specific network"),
+			cmdutil.StringFlag(&jaegerConfig.CustomNetworkName, "custom-network", "Name of the custom network to use"),
+			cmdutil.BoolFlag(&jaegerConfig.SkipOtelCollector, "skip-otel-collector", "Generate the docker-compose file without the Otel Collector"),
+			cmdutil.IntFlag(&jaegerConfig.OtelGRPCPort, "otel-grpc-port", "Port to bind the Otel-Collector GRPC Server"),
+			cmdutil.IntFlag(&jaegerConfig.OtelHTTPPort, "otel-http-port", "Port to bind the Otel-Collector HTTP Server"),
+			cmdutil.StringFlag(&jaegerConfig.OtelConfigFile, "otel-config-file", "File where otel config should be saved"),
 			cmdutil.StringFlag(&composeOutput, "compose-output", "Location where the docker-compose should be saved"),
 			cmdutil.BoolFlag(&skipOtelConfigFile, "skip-otel-config-file", "When true, will not generate otel-collector-yaml (must be provided by the user)"),
 		},
 		Action: func(ctx *cli.Context) error {
 			buf := &bytes.Buffer{}
 			var err error
-			if err = jagerDockerComposeTmpl.ExecuteTemplate(buf, "jaeger-compose", jagerConfig); err != nil {
+			if err = jagerDockerComposeTmpl.ExecuteTemplate(buf, "jaeger-compose", jaegerConfig); err != nil {
 				return err
 			}
 			if composeOutput == "-" {
@@ -169,10 +171,10 @@ func jaegerDockerComposeCmd() *cli.Command {
 			}
 			if !skipOtelConfigFile {
 				buf.Reset()
-				if err = jagerDockerComposeTmpl.ExecuteTemplate(buf, "otel-config", jagerConfig); err != nil {
+				if err = jagerDockerComposeTmpl.ExecuteTemplate(buf, "otel-config", jaegerConfig); err != nil {
 					return err
 				}
-				err = ioutil.WriteFile(jagerConfig.OtelConfigFile, buf.Bytes(), 0644)
+				err = ioutil.WriteFile(jaegerConfig.OtelConfigFile, buf.Bytes(), 0644)
 				if err != nil {
 					return err
 				}

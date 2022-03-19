@@ -11,6 +11,7 @@ func Cmd() *cli.Command {
 		Subcommands: []*cli.Command{
 			jaegerCmd(),
 			grafanaCmd(),
+			uptraceCmd(),
 		},
 	}
 }

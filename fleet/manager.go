@@ -77,7 +77,9 @@ func (m *Manager) startFleet(ctx context.Context) error {
 
 func (m *Manager) startServers(ctx context.Context, controlEndpoint string) error {
 	for _, service := range m.services {
-		err := m.startCmd(m.childrenGroup.Done, ctx, m.binary, "serve", "--bind", fmt.Sprintf("%v:%v", m.baseHost, m.basePort),
+		err := m.startCmd(m.childrenGroup.Done, ctx, m.binary,
+			"--otel.service.name", service,
+			"serve", "--bind", fmt.Sprintf("%v:%v", m.baseHost, m.basePort),
 			"--handler-file", filepath.Join(m.scriptsBase, service, "handler.lua"),
 			"--public-endpoint", fmt.Sprintf("http://%v:%v", m.baseHost, m.basePort),
 			"--control-endpoint", controlEndpoint)

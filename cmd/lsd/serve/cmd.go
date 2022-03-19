@@ -59,7 +59,7 @@ This argument is mandatory!
 			},
 		},
 		Action: func(c *cli.Context) error {
-			h, err := handler.NewHandler(c.Context, initFile, handlerFile, cmdutil.GetInstanceName(), publicEndpoint, controlEndpoint)
+			h, err := handler.NewHandler(c.Context, initFile, handlerFile, cmdutil.GetInstanceName(), cmdutil.ServiceName(), publicEndpoint, controlEndpoint)
 			if err != nil {
 				return err
 			}
