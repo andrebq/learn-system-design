@@ -1,4 +1,4 @@
-.PHONY: default test tidy watch dist serve-local
+.PHONY: default test tidy watch dist serve-local install-statik generate
 
 default: test
 
@@ -28,5 +28,11 @@ serve-local: dist
 		--public-endpoint http://127.0.0.1:$(LOCAL_PORT)
 
 
-watch:
+watch: generate
 	modd -f modd.conf
+
+generate:
+	go generate ./...
+
+install-statik:
+	go install github.com/rakyll/statik@v0.1.7

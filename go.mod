@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/julienschmidt/httprouter v1.3.0
+	github.com/rakyll/statik v0.1.7
 	github.com/rs/zerolog v1.26.1
 	github.com/steinfletcher/apitest v1.5.11
 	github.com/tsenart/vegeta v12.7.0+incompatible

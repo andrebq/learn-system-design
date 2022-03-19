@@ -7,3 +7,10 @@ jaeger-up: dist
 
 jaeger-down:
 	docker-compose -f ./localfiles/jaeger.compose.yaml down
+
+grafana-up: dist
+	cd localfiles && ../dist/lsd support grafana docker-compose -compose-file grafana.compose.yaml
+	docker-compose -f ./localfiles/grafana.compose.yaml up
+
+grafana-down:
+	docker-compose -f ./localfiles/grafana.compose.yaml down
