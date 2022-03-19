@@ -3,12 +3,31 @@ package monitoring
 import (
 	"context"
 	"fmt"
+	"net/http"
 
+	"github.com/andrebq/learn-system-design/internal/logutil"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// WrapHandler takes a normal http Handler and wraps it
+// so that every request will be measured using otel
+func WrapHandler(h http.Handler) http.Handler {
+	tracer := otel.Tracer("monitoring.http")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		Measure(r.Context(), tracer, "http.handler", func(ctx context.Context) {
+			id := trace.SpanFromContext(ctx).SpanContext().TraceID()
+			if id.IsValid() {
+				log := logutil.Acquire(ctx).With().Stringer("trace-id", id).Logger()
+				ctx = logutil.WithLogger(ctx, log)
+			}
+			r = r.WithContext(ctx)
+			h.ServeHTTP(w, r)
+		})
+	})
+}
 
 // Tracer is just a syntatic sugar for otel.Tracer(...),
 // that way users don't need to worry about otel on most use-cases

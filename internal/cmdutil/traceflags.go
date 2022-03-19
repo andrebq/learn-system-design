@@ -32,9 +32,9 @@ func mustStr(s string, e error) string {
 func Exporter(ctx context.Context) (trace.SpanExporter, error) {
 	var client otlptrace.Client
 	if useGRPCExporter {
-		client = otlptracegrpc.NewClient()
+		client = otlptracegrpc.NewClient(otlptracegrpc.WithEndpoint("localhost:4317"), otlptracegrpc.WithInsecure())
 	} else {
-		client = otlptracehttp.NewClient(otlptracehttp.WithEndpoint("localhost:4318"), otlptracehttp.WithURLPath("/2/v1/traces"), otlptracehttp.WithInsecure())
+		client = otlptracehttp.NewClient(otlptracehttp.WithEndpoint("localhost:4318"), otlptracehttp.WithInsecure())
 	}
 	exporter, err := otlptrace.New(ctx, client)
 	if err != nil {

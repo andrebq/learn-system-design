@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/andrebq/learn-system-design/internal/monitoring"
 	"github.com/rs/zerolog/log"
 )
 
 func RunHTTPServer(parentCtx context.Context, h http.Handler, bind string) error {
+	h = monitoring.WrapHandler(h)
 	rootCtx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 	server := &http.Server{Addr: bind, Handler: h, BaseContext: func(l net.Listener) context.Context { return parentCtx }}
