@@ -1,0 +1,23 @@
+version: '3'
+services:
+  clickhouse:
+    image: 'yandex/clickhouse-server:21.12'
+    environment:
+      - CLICKHOUSE_DB=uptrace
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'localhost:8123/ping']
+      interval: 1s
+      timeout: 1s
+      retries: 30
+  uptrace:
+    image: 'uptrace/uptrace:latest'
+    volumes:
+      - {{ .UptraceConfigFile }}:/etc/uptrace/uptrace.yml
+    ports:
+      - '{{ .OtelGRPCPort }}:{{ .OtelGRPCPort }}' # OTLP
+      - '{{ .OtelHTTPPort }}:{{ .OtelHTTPPort }}' # UI and HTTP API
+    environment:
+      - DEBUG=2
+    depends_on:
+      clickhouse:
+        condition: service_healthy

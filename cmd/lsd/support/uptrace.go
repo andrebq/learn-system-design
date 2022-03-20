@@ -14,93 +14,9 @@ import (
 var (
 	uptraceDockerComposeTmpl = template.Must(template.New("__root__").Parse(`
 {{ define "uptrace-compose" }}
-version: '{{ .ComposeVersion }}'
-services:
-  clickhouse:
-    image: 'yandex/clickhouse-server:21.12'
-    environment:
-      - CLICKHOUSE_DB=uptrace
-    healthcheck:
-      test: ['CMD', 'wget', '--spider', '-q', 'localhost:8123/ping']
-      interval: 1s
-      timeout: 1s
-      retries: 30
-    {{ if .CustomNetwork }}
-    networks:
-      - {{ .CustomNetworkName }}
-    {{ end }}
-  uptrace:
-    image: 'uptrace/uptrace:latest'
-    volumes:
-      - {{ .UptraceConfigFile }}:/etc/uptrace/uptrace.yml
-    ports:
-      - '{{ .OtelGRPCPort }}:{{ .OtelGRPCPort }}' # OTLP
-      - '{{ .OtelHTTPPort }}:{{ .OtelHTTPPort }}' # UI and HTTP API
-    environment:
-      - DEBUG=2
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-    {{ if .CustomNetwork }}
-    networks:
-      - {{ .CustomNetworkName }}
-    {{ end }}
-{{ if .CustomNetwork }}
-networks:
-  {{ .CustomNetworkName }}:
-{{ end }}
 
 {{ end }}
 {{ define "uptrace-config" }}
-secret_key: {{ .JWTSecret }}
-
-# Public URL for Vue-powered UI.
-site:
-  scheme: 'http'
-  host: 'localhost'
-
-listen:
-  # OTLP/gRPC API
-  grpc: ':{{ .OtelGRPCPort }}'
-  # OTLP/HTTP API and Uptrace API
-  http: ':{{ .OtelHTTPPort }}'
-
-ch:
-  # Connection string for ClickHouse database.
-  # clickhouse://<user>:<password>@<host>:<port>/<database>?sslmode=disable
-  dsn: 'clickhouse://default:@clickhouse:9000/uptrace?sslmode=disable'
-
-retention:
-  # Tell ClickHouse to delete data after 30 days.
-  # Supports SQL interval syntax, for example, INTERVAL 30 DAY.
-  ttl: 1 DAY
-
-# Uncomment this section to require authentication.
-#
-# users:
-#   - id: 1
-#     username: uptrace
-#     password: uptrace
-
-projects:
-  # First project is used for self-monitoring.
-  - id: 1
-    name: Uptrace
-    token: project1_secret_token
-
-  - id: 2
-    name: LearnSystemDesign
-
-# Various limits we apply to queries on spans_index table.
-#
-# - https://clickhouse.com/docs/en/operations/settings/query-complexity/
-# - https://clickhouse.com/docs/en/sql-reference/statements/select/sample/
-ch_select_limits:
-  # ClickHouse sampling is disabled by default,
-  # because it only makes queries faster with big ClickHouse clusters
-  sample_rows: 0
-  max_rows_to_read: 12e6 # read at most 12 million rows
-  max_bytes_to_read: 4e9 # read at most 4 gigabytes of data
 
 {{ end }}
 `))

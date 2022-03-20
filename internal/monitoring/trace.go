@@ -6,16 +6,33 @@ import (
 	"net/http"
 
 	"github.com/andrebq/learn-system-design/internal/logutil"
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
+type (
+	saveStatusResponse struct {
+		http.ResponseWriter
+		status int
+	}
+)
+
+func (s *saveStatusResponse) WriteHeader(st int) {
+	if s.status != 0 {
+		return
+	}
+	s.ResponseWriter.WriteHeader(st)
+	s.status = st
+}
+
 // WrapHandler takes a normal http Handler and wraps it
 // so that every request will be measured using otel
-func WrapHandler(h http.Handler) http.Handler {
+func WrapHandler(ctx context.Context, h http.Handler) http.Handler {
 	tracer := otel.Tracer("monitoring.http")
+	sampled := logutil.Acquire(ctx).Sample(zerolog.Sometimes)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		Measure(r.Context(), tracer, "http.handler", func(ctx context.Context) {
 			id := trace.SpanFromContext(ctx).SpanContext().TraceID()
@@ -24,6 +41,10 @@ func WrapHandler(h http.Handler) http.Handler {
 				ctx = logutil.WithLogger(ctx, log)
 			}
 			r = r.WithContext(ctx)
+			w = &saveStatusResponse{w, 0}
+			defer func() {
+				sampled.Info().Stringer("trace-id", id).Str("path", r.URL.Path).Str("remote", r.RemoteAddr).Int("status", w.(*saveStatusResponse).status).Send()
+			}()
 			h.ServeHTTP(w, r)
 		})
 	})
