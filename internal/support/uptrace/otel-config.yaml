@@ -1,0 +1,31 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:{{ .OtelGRPCPort }}
+      http:
+        endpoint: 0.0.0.0:{{ .OtelHTTPPort }}
+
+exporters:
+  otlp/uptrace:
+    endpoint: uptrace:{{.OtelGRPCPort}}
+    tls:
+      insecure: true
+    headers:
+      uptrace-dsn: 'http://learn-system-design-secret-token@localhost:4317/2'
+  logging:
+
+processors:
+  batch:
+
+extensions:
+  health_check:
+  pprof:
+
+service:
+  extensions: [pprof, health_check]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp/uptrace, logging]
+      processors: [batch]

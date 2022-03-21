@@ -14,3 +14,10 @@ grafana-up: dist
 
 grafana-down:
 	docker-compose -f ./localfiles/grafana.compose.yaml down
+
+uptrace-up: dist
+	cd localfiles && ../dist/lsd support uptrace docker-compose -compose-file uptrace.compose.yaml
+	docker-compose -f ./localfiles/uptrace.compose.yaml up
+
+uptrace-down:
+	docker-compose -f ./localfiles/uptrace.compose.yaml down

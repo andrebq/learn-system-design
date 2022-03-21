@@ -1,5 +1,17 @@
 version: '3'
 services:
+  otel-collector:
+    image: otel/opentelemetry-collector:0.47.0
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - {{ .OtelConfigFile }}:/etc/otel-collector-config.yml
+    ports:
+      - "{{ .OtelHTTPPort }}:{{ .OtelHTTPPort }}" # Otel collector HTTP Port
+      - "{{ .OtelGRPCPort }}:{{ .OtelGRPCPort }}" # Otel collector GRPC Port
+      - "1888:1888"   # pprof extension
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
   clickhouse:
     image: 'yandex/clickhouse-server:21.12'
     environment:
@@ -14,8 +26,7 @@ services:
     volumes:
       - {{ .UptraceConfigFile }}:/etc/uptrace/uptrace.yml
     ports:
-      - '{{ .OtelGRPCPort }}:{{ .OtelGRPCPort }}' # OTLP
-      - '{{ .OtelHTTPPort }}:{{ .OtelHTTPPort }}' # UI and HTTP API
+      - '{{ .UptraceUIPort }}:{{ .UptraceUIPort }}' # UI and HTTP API
     environment:
       - DEBUG=2
     depends_on:

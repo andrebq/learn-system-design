@@ -14,7 +14,7 @@ import (
 	"github.com/andrebq/learn-system-design/control"
 	"github.com/andrebq/learn-system-design/internal/logutil"
 	"github.com/andrebq/learn-system-design/internal/render"
-	"github.com/julienschmidt/httprouter"
+	"github.com/andrebq/learn-system-design/internal/router"
 	vegeta "github.com/tsenart/vegeta/lib"
 )
 
@@ -48,7 +48,7 @@ type (
 )
 
 func Handler(ctx context.Context, name string, controlEndpoint, publicEndpoint string) http.Handler {
-	router := httprouter.New()
+	router := router.New()
 	handler := &h{
 		name:            name,
 		publicEndpoint:  publicEndpoint,

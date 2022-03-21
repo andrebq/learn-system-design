@@ -90,6 +90,6 @@ func main() {
 	app := newApp(rootCtx)
 	err := app.RunContext(rootCtx, os.Args)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Application failed")
+		log.Fatal().Strs("args", os.Args).Err(err).Msg("Application failed")
 	}
 }

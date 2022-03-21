@@ -7,9 +7,11 @@ import (
 
 	"github.com/andrebq/learn-system-design/internal/logutil"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -28,26 +30,26 @@ func (s *saveStatusResponse) WriteHeader(st int) {
 	s.status = st
 }
 
-// WrapHandler takes a normal http Handler and wraps it
-// so that every request will be measured using otel
-func WrapHandler(ctx context.Context, h http.Handler) http.Handler {
-	tracer := otel.Tracer("monitoring.http")
+func WithRouteTag(tag string, h http.Handler) http.Handler {
+	return otelhttp.WithRouteTag(tag, h)
+}
+
+// WrapRootHandler takes a normal http Handler and wraps it
+// so that every request will be measured using otel.
+//
+// This method should be called on Root HTTP handlers instead of using individual handlers.
+func WrapRootHandler(ctx context.Context, h http.Handler) http.Handler {
 	sampled := logutil.Acquire(ctx).Sample(zerolog.Sometimes)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		Measure(r.Context(), tracer, "http.handler", func(ctx context.Context) {
-			id := trace.SpanFromContext(ctx).SpanContext().TraceID()
-			if id.IsValid() {
-				log := logutil.Acquire(ctx).With().Stringer("trace-id", id).Logger()
-				ctx = logutil.WithLogger(ctx, log)
-			}
-			r = r.WithContext(ctx)
-			w = &saveStatusResponse{w, 0}
-			defer func() {
-				sampled.Info().Stringer("trace-id", id).Str("path", r.URL.Path).Str("remote", r.RemoteAddr).Int("status", w.(*saveStatusResponse).status).Send()
-			}()
-			h.ServeHTTP(w, r)
-		})
+	sub := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		s := &saveStatusResponse{w, 0}
+		log := logutil.Acquire(r.Context()).With().Stringer("trace-id", trace.SpanContextFromContext(r.Context()).TraceID()).Logger()
+		defer func() {
+			sampled.Debug().Str(string(semconv.HTTPMethodKey), r.Method).Int(string(semconv.HTTPStatusCodeKey), s.status).Send()
+		}()
+		r = r.WithContext(logutil.WithLogger(r.Context(), log))
+		h.ServeHTTP(s, r)
 	})
+	return otelhttp.NewHandler(sub, "root-handler")
 }
 
 // Tracer is just a syntatic sugar for otel.Tracer(...),

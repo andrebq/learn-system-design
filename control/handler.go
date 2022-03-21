@@ -16,6 +16,7 @@ import (
 	"github.com/andrebq/learn-system-design/internal/logutil"
 	"github.com/andrebq/learn-system-design/internal/mutex"
 	"github.com/andrebq/learn-system-design/internal/render"
+	"github.com/andrebq/learn-system-design/internal/router"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -62,7 +63,7 @@ type (
 )
 
 func Handler() http.Handler {
-	r := httprouter.New()
+	r := router.New()
 	c := &control{
 		services:  &serviceList{},
 		stressors: &stressorList{},

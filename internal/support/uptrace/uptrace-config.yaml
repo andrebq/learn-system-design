@@ -9,7 +9,7 @@ listen:
   # OTLP/gRPC API
   grpc: ':{{ .OtelGRPCPort }}'
   # OTLP/HTTP API and Uptrace API
-  http: ':{{ .OtelHTTPPort }}'
+  http: ':{{ .UptraceUIPort }}'
 
 ch:
   # Connection string for ClickHouse database.
@@ -36,6 +36,7 @@ projects:
 
   - id: 2
     name: LearnSystemDesign
+    token: learn-system-design-secret-token
 
 # Various limits we apply to queries on spans_index table.
 #

@@ -12,7 +12,7 @@ import (
 )
 
 func RunHTTPServer(parentCtx context.Context, h http.Handler, bind string) error {
-	h = monitoring.WrapHandler(parentCtx, h)
+	h = monitoring.WrapRootHandler(parentCtx, h)
 	rootCtx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
 	server := &http.Server{Addr: bind, Handler: h, BaseContext: func(l net.Listener) context.Context { return parentCtx }}

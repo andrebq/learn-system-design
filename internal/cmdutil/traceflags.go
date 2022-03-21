@@ -90,15 +90,18 @@ func ServiceEnvFlag() cli.Flag {
 // Resource returns a resource that was configured by the
 // flags provided to this process
 func Resource() *resource.Resource {
-	r, _ := resource.Merge(
+	r, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(
-			semconv.SchemaURL,
+			"",
 			semconv.ServiceNameKey.String(serviceName),
 			semconv.ServiceVersionKey.String(serviceVersion),
 			semconv.DeploymentEnvironmentKey.String(serviceEnv),
 			semconv.ServiceInstanceIDKey.String(GetInstanceName()),
 		),
 	)
+	if err != nil {
+		panic(err)
+	}
 	return r
 }

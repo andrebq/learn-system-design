@@ -1,16 +1,19 @@
 package grafana
 
 import (
-	"bytes"
-	"io/ioutil"
 	"path/filepath"
 	"text/template"
 
-	"github.com/rakyll/statik/fs"
+	"github.com/andrebq/learn-system-design/internal/support/tmplhelper"
 )
 
 var (
-	grafanaTemplate = mustLoadTemplate()
+	grafanaTemplate = template.Must(tmplhelper.LoadAll("github.com/andrebq/learn-system-design/internal/support/grafana",
+		"grafana-datasources.yaml",
+		"prometheus-config.yaml",
+		"template.docker-compose.yaml",
+		"tempo-config.yaml",
+	))
 )
 
 type (
@@ -31,57 +34,23 @@ func DefaultConfig() Config {
 	}
 }
 
-func mustLoadTemplate() *template.Template {
-	statikfs, err := fs.NewWithNamespace("github.com/andrebq/learn-system-design/internal/support/grafana")
-	if err != nil {
-		panic(err)
-	}
-	t := template.New("__root__")
-	for _, fileName := range []string{
-		"grafana-datasources.yaml",
-		"prometheus-config.yaml",
-		"template.docker-compose.yaml",
-		"tempo-config.yaml",
-	} {
-		name := filepath.Base(fileName)[:len(fileName)-len(filepath.Ext(fileName))]
-		file, err := statikfs.Open("/" + fileName)
-		if err != nil {
-			panic(fileName)
-		}
-		content, err := ioutil.ReadAll(file)
-		if err != nil {
-			panic(err)
-		}
-		file.Close()
-		_, err = t.New(name).Parse(string(content))
-		if err != nil {
-			panic(err)
-		}
-	}
-	return t
-}
-
 func GenerateFiles(config Config) error {
-	type genpair struct {
-		template string
-		output   string
+	basepath := filepath.Dir(config.DockerComposeFile)
+	computePath := func(child string) string {
+		return filepath.Join(basepath, child)
 	}
-	parent := filepath.Dir(config.DockerComposeFile)
-	for _, p := range []genpair{
-		{template: "grafana-datasources", output: filepath.Join(parent, config.DatasourcesFile)},
-		{template: "prometheus-config", output: filepath.Join(parent, config.PrometheusConfigFile)},
-		{template: "tempo-config", output: filepath.Join(parent, config.TempoConfigFile)},
-		{template: "template.docker-compose", output: config.DockerComposeFile},
-	} {
-		buf := bytes.Buffer{}
-		err := grafanaTemplate.ExecuteTemplate(&buf, p.template, config)
-		if err != nil {
-			return err
-		}
-		err = ioutil.WriteFile(p.output, buf.Bytes(), 0644)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	return tmplhelper.RenderAll(grafanaTemplate, config,
+		tmplhelper.RenderConfig{
+			Name:       "grafana-datasources",
+			OutputFile: computePath(config.DatasourcesFile)},
+		tmplhelper.RenderConfig{
+			Name:       "prometheus-config",
+			OutputFile: computePath(config.PrometheusConfigFile),
+		},
+		tmplhelper.RenderConfig{
+			Name:       "tempo-config",
+			OutputFile: computePath(config.TempoConfigFile)},
+		tmplhelper.RenderConfig{
+			Name:       "template.docker-compose",
+			OutputFile: config.DockerComposeFile})
 }
