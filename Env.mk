@@ -1,4 +1,4 @@
-IMAGE_REPO?=andrebq/learn-system-desig
+IMAGE_REPO?=andrebq/lsd
 IMAGE_TAG?=latest
 IMAGE_FULL_NAME=$(IMAGE_REPO):$(IMAGE_TAG)
 

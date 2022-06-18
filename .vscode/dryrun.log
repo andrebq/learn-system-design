@@ -1,0 +1,4 @@
+make: Entering directory `/Users/andre.alves/Source/github.com/andrebq/learn-system-design'
+go test ./...
+make: Leaving directory `/Users/andre.alves/Source/github.com/andrebq/learn-system-design'
+ 

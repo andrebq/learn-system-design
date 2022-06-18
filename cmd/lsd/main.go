@@ -6,16 +6,14 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/andrebq/learn-system-design/cmd/lsd/control"
-	"github.com/andrebq/learn-system-design/cmd/lsd/fleet"
-	"github.com/andrebq/learn-system-design/cmd/lsd/serve"
-	"github.com/andrebq/learn-system-design/cmd/lsd/stress"
-	"github.com/andrebq/learn-system-design/cmd/lsd/support"
+	"github.com/andrebq/learn-system-design/cmd/lsd/ctl"
+	"github.com/andrebq/learn-system-design/cmd/lsd/generators"
+	"github.com/andrebq/learn-system-design/cmd/lsd/manager"
+	"github.com/andrebq/learn-system-design/cmd/lsd/userservice"
 	"github.com/andrebq/learn-system-design/internal/cmdutil"
 	"github.com/andrebq/learn-system-design/internal/logutil"
 	"github.com/andrebq/learn-system-design/internal/monitoring"
 	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
 	logpkg "github.com/rs/zerolog/log"
 	"github.com/urfave/cli/v2"
 )
@@ -27,11 +25,16 @@ func newApp(parentCtx context.Context) *cli.App {
 		Name:  "lsd - learn system design",
 		Usage: "Simple application to help teach system design various audiences",
 		Commands: []*cli.Command{
-			serve.Cmd(),
-			stress.Cmd(),
-			control.Cmd(),
-			fleet.Cmd(),
-			support.Cmd(),
+			userservice.Cmd(),
+			manager.Cmd(),
+			/*
+				stress.Cmd(),
+				control.Cmd(),
+				fleet.Cmd(),
+				support.Cmd(),
+			*/
+			ctl.Cmd(),
+			generators.Cmd(),
 		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -70,7 +73,7 @@ func newApp(parentCtx context.Context) *cli.App {
 			case zerolog.LevelWarnValue:
 				ll = zerolog.WarnLevel
 			}
-			log := log.Level(ll)
+			log := logpkg.Level(ll)
 			appCtx := logutil.WithLogger(ctx.Context, log)
 			var sigCtx context.Context
 			sigCtx, sigCancel = signal.NotifyContext(appCtx, os.Interrupt)

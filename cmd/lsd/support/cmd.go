@@ -6,12 +6,14 @@ import (
 
 func Cmd() *cli.Command {
 	return &cli.Command{
-		Name:  "support",
-		Usage: "Commands to control support tooling (tracing, logging, etc...)",
+		Name:        "support",
+		Usage:       "Commands to control support tooling (tracing, logging, etc...)",
 		Subcommands: []*cli.Command{
-			jaegerCmd(),
-			grafanaCmd(),
-			uptraceCmd(),
+			/*
+				jaegerCmd(),
+				grafanaCmd(),
+				uptraceCmd(),
+			*/
 		},
 	}
 }

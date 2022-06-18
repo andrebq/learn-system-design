@@ -9,6 +9,7 @@ include Stress.mk
 include ControlPlane.mk
 include Fleet.mk
 include Support.mk
+include K8S.mk
 
 test:
 	go test ./...

@@ -15,4 +15,4 @@ RUN addgroup -S app && adduser -S app -G app
 
 COPY --from=builder /usr/src/app/dist/lsd /usr/bin/lsd
 USER app
-CMD [ "lsd", "serve" ]
+CMD [ "lsd", "user-service" ]

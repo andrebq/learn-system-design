@@ -1,5 +1,5 @@
 local handler = require("handler")
 local services = require("services")
-services.call("backend")
+local backendResponse = services.call("api:9000")
 handler.writeStatus(200)
-handler.writeBody("from LUA!")
+handler.writeBody("Backend: " .. backendResponse .. " frontend: Hello from lua!")

@@ -1,3 +1,4 @@
 LocalEnv.mk
 dist
 localfiles
+.DS_Store
